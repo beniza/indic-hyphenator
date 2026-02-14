@@ -20,7 +20,7 @@ A scripted solution for adding discretionary hyphens to South Indian languages i
 2. Open Adobe InDesign.
 3. Go to **Window > Utilities > Scripts**.
 4. Right-click the **User** folder and select **Reveal in Explorer/Finder**.
-5. Copy `IndicHyphenator.jsx` into that folder.
+5. Copy `IndicHyphenator.jsx` AND the `lib` folder into that folder.
 
 For detailed usage instructions, please see the [User Guide](UserGuide.md).
 
