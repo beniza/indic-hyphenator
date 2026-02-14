@@ -4,7 +4,8 @@
  * Indic Hyphenator for Adobe InDesign
  * Adds discretionary hyphens for Tamil, Malayalam, Telugu, and Kannada.
  * 
- * Based on Franklin M. Liang's algorithm.
+ * Hyphenation patterns based on Franklin M. Liang's algorithm.
+ * Syllable detection ported from MarkDravidianHyphenatedWords.py by Dan M.
  * Patterns from: https://github.com/ytiurin/hyphen
  */
 
@@ -219,6 +220,7 @@ function main() {
     btnRun.onClick = function () {
         var langCode = ["ta", "ml", "te", "kn"][dwLang.selection.index];
         var hyphenator = createHyphenator([Patterns[langCode][0], Patterns[langCode][1], {}]);
+        var rules = Patterns[langCode].rules || {};
         var cond = getOrMakeCondition();
 
         var minWordLen = parseInt(etMinWord.text, 10) || 3;
@@ -272,7 +274,7 @@ function main() {
             if (ignoreLastWord) limit--;
 
             for (var w = 0; w < limit; w++) {
-                processWord(words[w], hyphenator, cond, minWordLen, minBefore, minAfter, usePreview);
+                processWord(words[w], hyphenator, cond, minWordLen, minBefore, minAfter, usePreview, rules);
             }
 
             if (p % 10 === 0) {
@@ -287,19 +289,57 @@ function main() {
             txtStatus.text = "Done. Added " + hyphenCount + " hyphens.";
         }
 
-        function processWord(wordObj, hyphenator, cond, minLen, minB, minA, preview) {
+        function processWord(wordObj, hyphenator, cond, minLen, minB, minA, preview, rules) {
             var content = wordObj.contents;
+            // Robust cleanup: remove soft hyphens, ZWJ/ZWNJ, ZWSP
+            // Also trim leading punctuation for the purpose of "cleanContent" length check?
+            // Actually, keep punctuation but ensuring we don't break *at* it is handled by the index check below.
             var cleanContent = content.replace(/[\u00AD\u200C\u200D\u200B]/g, "").replace(/\u00AD/g, "");
 
-            if (cleanContent.length < minLen) return;
+            // 1. Blacklist Check
+            if (rules && rules.blacklist && rules.blacklist.length > 0) {
+                // Determine if we need exact match or contains
+                // Usually exact word match.
+                for (var b = 0; b < rules.blacklist.length; b++) {
+                    if (cleanContent === rules.blacklist[b]) return;
+                }
+            }
+
+            // Syllable-based length check
+            var totalSyll = countSyllables(cleanContent);
+            if (totalSyll < minLen) return;
 
             var points = hyphenator(cleanContent);
 
             for (var k = points.length - 1; k >= 0; k--) {
                 var idx = points[k];
-                if (idx < minB) continue;
-                if ((cleanContent.length - idx) < minA) continue;
                 if (isCombiningMark(cleanContent[idx])) continue;
+
+                // Syllable-based min before/after checks
+                var leftPart = cleanContent.substring(0, idx);
+                var rightPart = cleanContent.substring(idx);
+                var syllBefore = countSyllables(leftPart);
+                var syllAfter = countSyllables(rightPart);
+                if (syllBefore < minB) continue;
+                if (syllAfter < minA) continue;
+
+                // 2. Do Not Break Before Check (e.g. Chillu)
+                if (rules && rules.doNotBreakBefore) {
+                    if (rules.doNotBreakBefore.indexOf(cleanContent[idx]) !== -1) continue;
+                }
+
+                // 3. Bad Fragment Check (End of Line)
+                if (rules && rules.badFragments) {
+                    var fragment = cleanContent.substring(0, idx);
+                    var blocked = false;
+                    for (var bf = 0; bf < rules.badFragments.length; bf++) {
+                        if (fragment === rules.badFragments[bf]) {
+                            blocked = true;
+                            break;
+                        }
+                    }
+                    if (blocked) continue;
+                }
 
                 try {
                     var ip = wordObj.insertionPoints[idx];

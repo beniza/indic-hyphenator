@@ -271,3 +271,78 @@ function isCombiningMark(char) {
 
     return false;
 }
+
+// ============================================================================================
+// SYLLABLE DETECTION
+// Ported from MarkDravidianHyphenatedWords.py by Dan M
+// ============================================================================================
+
+function getSyllables(word) {
+    // Unicode ranges from the Python reference:
+    // Independent vowels
+    var indVowels = "\u0B85-\u0B94"       // Tamil
+        + "\u0B05-\u0B14\u0B60\u0B61"  // Oriya
+        + "\u0C05-\u0C14\u0C60\u0C61"  // Telugu
+        + "\u0C85-\u0C94\u0CE0\u0CE1"  // Kannada
+        + "\u0D05-\u0D14\u0D60\u0D61"; // Malayalam
+
+    // Vowel modifiers / stress marks
+    var vmod = "\u0324"                     // Combining diaeresis (temp)
+        + "\u0B82"                     // Tamil
+        + "\u0B01-\u0B03\u0B4D"        // Oriya
+        + "\u0C01-\u0C03\u0C4D"        // Telugu
+        + "\u0C82-\u0C83\u0CBD"        // Kannada
+        + "\u0D02-\u0D03\u0D3D";       // Malayalam
+
+    // Consonant modifiers (nukta etc.)
+    var cmod = "\u0324\u0CBC\u0B3C";
+
+    // Consonants (excluding Malayalam Chillu U+0D7A-0D7F, which are coda-only)
+    var cons = "\u0B95-\u0BB9"              // Tamil
+        + "\u0B15-\u0B39\u0B5C\u0B5D\u0B5F\u0B70\u0B71" // Oriya
+        + "\u0C15-\u0C39\u0C58\u0C59"  // Telugu
+        + "\u0C95-\u0CB9\u0CDE"        // Kannada
+        + "\u0D15-\u0D39";             // Malayalam (regular consonants only)
+
+    // Malayalam Chillu characters — treated as separate syllable units for
+    // hyphenation purposes because they visually occupy a full character width.
+    var chillus = "\u0D7A-\u0D7F";
+
+    // Matras
+    var matras = "\u0BBE-\u0BCC\u0BD7"       // Tamil (note: corrected from Python's 0BBC)
+        + "\u0B3E-\u0B4C\u0B56\u0B57\u0B62\u0B63" // Oriya
+        + "\u0C3E-\u0C4C\u0C55\u0C56\u0C62\u0C63" // Telugu
+        + "\u0CBE-\u0CCC\u0CD5\u0CD6\u0CE2\u0CE3" // Kannada
+        + "\u0D3E-\u0D4C\u0D57\u0D62\u0D63";       // Malayalam
+
+    // Viramas
+    var viramas = "\u0BCD"    // Tamil
+        + "\u0B4D"    // Oriya
+        + "\u0C4D"    // Telugu
+        + "\u0CCD"    // Kannada
+        + "\u0D4D";   // Malayalam
+
+    // Build syllable patterns (same logic as Python):
+    // consPattern = consonant + optional consonant modifiers
+    var consP = "[" + cons + "][" + cmod + "]*";
+    // viramasPattern = virama + optional ZWJ/ZWNJ
+    var viramaP = "[" + viramas + "][\u200C\u200D\u0324]*";
+    // optMatras = optional matras and vowel modifiers
+    var optMatras = "[" + matras + vmod + "]*";
+
+    // Syllable type 1: (Cons+Virama)* Cons OptMatras (normal syllable, no chillu coda)
+    var syll1 = "(?:(?:" + consP + viramaP + ")*" + consP + optMatras + ")";
+    // Syllable type 3: Independent vowel + optional modifiers (no chillu coda)
+    var syll3 = "(?:[" + indVowels + "][" + vmod + "]*)";
+    // Syllable type 4: Chillu character as its own syllable unit
+    var syll4 = "(?:[" + chillus + "])";
+
+    var syllPattern = new RegExp("(" + syll1 + "|" + syll3 + "|" + syll4 + ")", "g");
+
+    var matches = word.match(syllPattern);
+    return matches || [];
+}
+
+function countSyllables(word) {
+    return getSyllables(word).length;
+}

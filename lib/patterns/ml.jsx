@@ -22,3 +22,10 @@ Patterns.ml = [
     },
     {}
 ];
+
+Patterns.ml.rules = {
+    // ൺ ൻ ർ ൽ ൾ ൿ (Chillu characters)
+    doNotBreakBefore: "\u0D7A\u0D7B\u0D7C\u0D7D\u0D7E\u0D7F",
+    blacklist: [], // Add words here to prevent hyphenation
+    badFragments: ["പൂർ", "പറി", "വെടി"] // Do not leave these fragments at end of line
+};
