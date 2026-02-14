@@ -48,9 +48,12 @@ You can run the script on different scopes:
 - **Min Word Length:** The minimum number of characters a word must have to be hyphenated (default: 3).
 - **Min Before:** Minimum characters to keep at the start of the word before a hyphen (default: 2).
 - **Min After:** Minimum characters to keep at the end of the word after a hyphen (default: 2).
-- **Preview Mode (use '#'):** Inserts a visible `#` symbol instead of an invisible discretionary hyphen. Useful for checking where hyphens will appear without changing view modes.
-- **Prevent Orphan Word:** Adds a non-breaking space between the last two words of every paragraph to prevent single words on the last line.
-- **Ignore Last Word:** Skips hyphenation for the very last word of a paragraph (enabled by default).
+- **Break Character:** Choose between "Zero Width Space (Invisible)" or "Soft Hyphen (Visible -)". 
+  - *Zero Width Space* (default) allows the word to break without showing a hyphen.
+  - *Soft Hyphen* shows a hyphen when the word breaks.
+- **Preview Mode (use '-'):** Inserts a visible `-` hyphen. Useful if you want to see potential break points clearly without using the "Show Hidden Characters" option.
+- **Prevent Orphan Word:** Adds a non-breaking space between the last two words of every paragraph.
+- **Ignore Last Word:** Skips hyphenation for the very last word of a paragraph.
 
 ### 4. Hyphenate
 - Click the **Hyphenate** button.

@@ -1,4 +1,4 @@
-#target "indesign"
+// #target "indesign"
 
 /**
  * Indic Hyphenator for Adobe InDesign
@@ -511,10 +511,16 @@ function main() {
     var etMinAfter = gMinChars.add("edittext", undefined, "2");
     etMinAfter.characters = 3;
 
-    var cbPreview = pSettings.add("checkbox", undefined, "Preview Mode (use '#')");
+    var cbPreview = pSettings.add("checkbox", undefined, "Preview Mode (use '-')");
     var cbFixLastLine = pSettings.add("checkbox", undefined, "Prevent orphan word (Fix Last Line)");
     var cbIgnoreLastWord = pSettings.add("checkbox", undefined, "Ignore Last Word of Paragraph");
+    var cbIgnoreLastWord = pSettings.add("checkbox", undefined, "Ignore Last Word of Paragraph");
     cbIgnoreLastWord.value = true; // Default
+
+    var gBreak = pSettings.add("group");
+    gBreak.add("statictext", undefined, "Break Character:");
+    var dwBreak = gBreak.add("dropdownlist", undefined, ["Zero Width Space (Invisible)", "Soft Hyphen (Visible -)"]);
+    dwBreak.selection = 0; // Default to Invisible
 
     // Panel: Action
     var pAction = win.add("group");
@@ -589,11 +595,15 @@ function main() {
         app.findTextPreferences.findWhat = "^-";
         counter += removeFound(targets, CONDITION_NAME);
 
-        // 2. Remove '#' (if preview mode was used)
-        app.findTextPreferences.findWhat = "#";
+        // 2. Remove '-' (if preview mode was used)
+        app.findTextPreferences.findWhat = "-";
         counter += removeFound(targets, CONDITION_NAME);
 
-        // 3. Remove Non-breaking spaces (if we inserted them)
+        // 3. Remove Zero Width Spaces (invisible breaks)
+        app.findTextPreferences.findWhat = "\u200B"; // Zero Width Space
+        counter += removeFound(targets, CONDITION_NAME);
+
+        // 4. Remove Non-breaking spaces (if we inserted them)
         app.findTextPreferences.findWhat = "^S"; // Nonbreaking space
         counter += removeFound(targets, CONDITION_NAME);
 
@@ -718,8 +728,12 @@ function main() {
                 try {
                     var ip = wordObj.insertionPoints[idx];
                     if (preview) {
-                        ip.contents = "#";
+                        ip.contents = "-";
+                    } else if (dwBreak.selection.index === 0) {
+                        // Zero Width Space (Invisible)
+                        ip.contents = "\u200B";
                     } else {
+                        // Soft Hyphen (Visible)
                         ip.contents = SpecialCharacters.DISCRETIONARY_HYPHEN;
                     }
                     wordObj.characters[idx].applyConditions(cond);
