@@ -10,6 +10,17 @@ The **Indic Hyphenator** is a script for Adobe InDesign that automatically inser
 - Telugu
 - Kannada
 
+> [!NOTE]
+> **Algorithm:** The script uses a hybrid approach:
+> 1. **Franklin M. Liang's algorithm** generates candidate hyphenation points.
+> 2. **Den Em's syllable logic** verifies and filters these points to ensure linguistically correct breaks.
+
+> [!NOTE]
+> **Verification Status:** While the tool supports Tamil, Telugu, and Kannada, only **Malayalam** has been verified by a native speaker. We invite the community to help verify and improve the patterns for the other languages.
+
+### New in Version 2.2
+- **Enhanced Malayalam Support:** The script now treats **Chillu characters** (ൺ, ൻ, ർ, ൽ, ൾ, ൿ) as full syllable units. This results in more natural break points (e.g., `അർ-പ്പ` instead of `അർപ്പ-`).
+
 ## Installation
 
 1.  **Download the Script:**
@@ -59,6 +70,21 @@ You can run the script on different scopes:
 - Click the **Hyphenate** button.
 - A progress bar will show the status.
 - When finished, a message will tell you how many hyphens were added.
+
+### 5. Review Output
+Discretionary hyphens are invisible unless you show hidden characters.
+
+**Examples of Hyphenation:**
+
+| Language | Example Output |
+| :--- | :--- |
+| **Malayalam** | `അർ-പ്പ-ണ-മ-നോ-ഭാ-വ-ത്താ-ലുള്ള` |
+| **Tamil** | `திருச்-சி-ராப்-பள்ளி` |
+| **Telugu** | `ప్ర-పం-చీ-క-రణ` |
+| **Kannada** | `ಬೆಂಗ-ಳೂರು` |
+
+> *Note on Settings:* The "Min Before" and "Min After" settings count **visual syllable units**. For Malayalam, a Chillu character counts as its own unit, so a break like `അർ-` is allowed even if "Min Before" is set to 2 (because `അ` + `ർ` = 2 units).
+
 
 ## Features & Tips
 

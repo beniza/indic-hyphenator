@@ -5,13 +5,16 @@ A scripted solution for adding discretionary hyphens to South Indian languages i
 ## Features
 
 - **Languages Supported:** Tamil, Malayalam, Telugu, Kannada.
-- **Algorithm:** Based on Franklin M. Liang's hyphenation algorithm.
+- **Algorithm:** Uses a **hybrid approach**:
+    - **Franklin M. Liang's algorithm** for generating candidate hyphenation points.
+    - **Den Em's syllable-based logic** for verifying valid break points and enforcing syllable constraints.
 - **Scope Control:** Works on current selection, parent story, or the entire document.
 - **Smart Logic:**
     - Configurable minimum word length.
     - Configurable minimum characters before/after hyphen.
     - Prevents breaking combining characters.
     - "Fix Last Line" to prevent orphans.
+    - **Enhanced Malayalam Support:** Chillu characters (ൺ, ൻ, ർ, etc.) are treated as full letters for more natural break points.
 - **Non-Destructive:** Adds hyphens as "Discretionary Hyphens" (or visible `-` for preview) tagged with a specific condition for easy removal.
 
 ## Installation
@@ -50,6 +53,17 @@ node test_logic.js
 ```
 
 This runs a simulation of the V2 algorithm against sample words to verify split points and constraints.
+
+## Contributing
+
+**We need your help!**
+
+While the scripts for Tamil, Telugu, and Kannada are included, they have **not yet been verified** by native speakers.
+
+If you are a native speaker of these languages, please:
+1. Try the script on some sample text.
+2. Report any bad break points or missed opportunities.
+3. Submit a Pull Request with improved patterns or logic.
 
 ## License
 

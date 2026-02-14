@@ -274,7 +274,7 @@ function isCombiningMark(char) {
 
 // ============================================================================================
 // SYLLABLE DETECTION
-// Ported from MarkDravidianHyphenatedWords.py by Dan M
+// Syllable detection logic by Den Em
 // ============================================================================================
 
 function getSyllables(word) {

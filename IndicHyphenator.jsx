@@ -5,7 +5,7 @@
  * Adds discretionary hyphens for Tamil, Malayalam, Telugu, and Kannada.
  * 
  * Hyphenation patterns based on Franklin M. Liang's algorithm.
- * Syllable detection ported from MarkDravidianHyphenatedWords.py by Dan M.
+ * Syllable detection logic by Den Em.
  * Patterns from: https://github.com/ytiurin/hyphen
  */
 
@@ -44,7 +44,7 @@ function main() {
     }
 
     // Main UI
-    var win = new Window("dialog", "Indic Hyphenator V2");
+    var win = new Window("dialog", "Indic Hyphenator 2.2");
     win.orientation = "column";
     win.alignChildren = "fill";
 
