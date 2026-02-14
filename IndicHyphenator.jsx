@@ -86,23 +86,7 @@ if (!Object.keys) {
             if (typeof obj !== 'object' && (typeof obj !== 'function' || obj === null)) {
                 throw new TypeError('Object.keys called on non-object');
             }
-
-            var result = [], prop, i;
-
-            for (prop in obj) {
-                if (hasOwnProperty.call(obj, prop)) {
-                    result.push(prop);
-                }
-            }
-
-            if (hasDontEnumBug) {
-                for (i = 0; i < dontEnumsLength; i++) {
-                    if (hasOwnProperty.call(obj, dontEnums[i])) {
-                        result.push(dontEnums[i]);
-                    }
-                }
-            }
-            return result;
+            return [];
         };
     }());
 }
@@ -340,22 +324,13 @@ var createHyphenator = (function () {
                 )
             );
 
-        // In InDesign we'd rather get the hyphenation points for a single word, 
-        // but this engine is designed to process chunks of text. 
-        // We will expose a way to just get the markers for a word.
-
         return {
             hyphenate: function (word) {
-                // simplified single word hyphenation used locally
                 var loweredWord = word.toLocaleLowerCase();
                 return hyphenateWord(word, loweredWord, levelsTable, patterns);
             }
         };
-
     }
-
-    // Simplified createHyphenator for our use case (just need the internal hyphenateWord really)
-    // But we'll stick to the structure to keep the logic intact.
 
     function createHyphenator(patternsDefinition, options) {
         var levelsTable = patternsDefinition[0],
@@ -451,6 +426,23 @@ Patterns.kn = [
     {}
 ];
 
+function isCombiningMark(char) {
+    var code = char.charCodeAt(0);
+    // Tamil: 0B82-0B83 (Signs), 0BBE-0BCD (Matras/Virama), 0BD7 (Au length)
+    if ((code >= 0x0B82 && code <= 0x0B83) || (code >= 0x0BBE && code <= 0x0BCD) || code === 0x0BD7) return true;
+
+    // Malayalam: 0D02-0D03, 0D3E-0D4D, 0D57
+    if ((code >= 0x0D02 && code <= 0x0D03) || (code >= 0x0D3E && code <= 0x0D4D) || code === 0x0D57) return true;
+
+    // Telugu: 0C01-0C03, 0C3E-0C4D, 0C55-0C56
+    if ((code >= 0x0C01 && code <= 0x0C03) || (code >= 0x0C3E && code <= 0x0C4D) || (code >= 0x0C55 && code <= 0x0C56)) return true;
+
+    // Kannada: 0C82-0C83, 0CBE-0CCD, 0CD5-0CD6
+    if ((code >= 0x0C82 && code <= 0x0C83) || (code >= 0x0CBE && code <= 0x0CCD) || (code >= 0x0CD5 && code <= 0x0CD6)) return true;
+
+    return false;
+}
+
 // ============================================================================================
 // UI & LOGIC
 // ============================================================================================
@@ -475,7 +467,7 @@ function main() {
     }
 
     // Main UI
-    var win = new Window("dialog", "Indic Hyphenator");
+    var win = new Window("dialog", "Indic Hyphenator V2");
     win.orientation = "column";
     win.alignChildren = "fill";
 
@@ -494,7 +486,6 @@ function main() {
         rbDocument.value = true;
     } else if (app.selection.length > 0 && !(app.selection[0] instanceof TextFrame || app.selection[0].hasOwnProperty("baseline"))) {
         // If selection isn't text-related (like an image), default to doc
-        // But usually InDesign scripts run with text selected.
     }
 
     // Panel: Language
@@ -502,6 +493,28 @@ function main() {
     pLang.alignChildren = "left";
     var dwLang = pLang.add("dropdownlist", undefined, ["Tamil", "Malayalam", "Telugu", "Kannada"]);
     dwLang.selection = 0;
+
+    // Panel: Settings
+    var pSettings = win.add("panel", undefined, "Settings");
+    pSettings.alignChildren = "left";
+
+    var gMinWord = pSettings.add("group");
+    gMinWord.add("statictext", undefined, "Min Word Length:");
+    var etMinWord = gMinWord.add("edittext", undefined, "3");
+    etMinWord.characters = 3;
+
+    var gMinChars = pSettings.add("group");
+    gMinChars.add("statictext", undefined, "Min Before:");
+    var etMinBefore = gMinChars.add("edittext", undefined, "2");
+    etMinBefore.characters = 3;
+    gMinChars.add("statictext", undefined, "Min After:");
+    var etMinAfter = gMinChars.add("edittext", undefined, "2");
+    etMinAfter.characters = 3;
+
+    var cbPreview = pSettings.add("checkbox", undefined, "Preview Mode (use '#')");
+    var cbFixLastLine = pSettings.add("checkbox", undefined, "Prevent orphan word (Fix Last Line)");
+    var cbIgnoreLastWord = pSettings.add("checkbox", undefined, "Ignore Last Word of Paragraph");
+    cbIgnoreLastWord.value = true; // Default
 
     // Panel: Action
     var pAction = win.add("group");
@@ -524,26 +537,22 @@ function main() {
 
     function getTargetObjects() {
         var targets = [];
-        var scopeName = "";
         if (rbSelection.value) {
-            scopeName = "Selection";
             for (var i = 0; i < app.selection.length; i++) {
                 if (app.selection[i].hasOwnProperty("texts")) {
                     targets.push(app.selection[i].texts[0]);
                 } else if (app.selection[i] instanceof TextFrame) {
                     targets.push(app.selection[i].texts[0]);
-                } else if (app.selection[i] instanceof Text) { // User selected text range
+                } else if (app.selection[i] instanceof Text) {
                     targets.push(app.selection[i]);
                 }
             }
         } else if (rbStory.value) {
-            scopeName = "Story";
             if (app.selection.length > 0 && app.selection[0].parentStory) {
                 targets.push(app.selection[0].parentStory);
             }
         } else {
             // Document
-            scopeName = "Document";
             if (app.activeDocument) {
                 targets.push(app.activeDocument);
             }
@@ -563,7 +572,7 @@ function main() {
         }
 
         txtStatus.text = "Removing existing hyphens...";
-        win.layout.layout(true); // Force UI update
+        win.layout.layout(true);
 
         app.findChangeTextOptions.includeFootnotes = true;
         app.findChangeTextOptions.includeHiddenLayers = false;
@@ -574,39 +583,51 @@ function main() {
         app.findTextPreferences = NothingEnum.nothing;
         app.changeTextPreferences = NothingEnum.nothing;
 
-        // Find discretionary hyphens
-        app.findTextPreferences.findWhat = "^-"; // Discretionary hyphen
-
         var counter = 0;
 
-        // Unfortunately standard JS findText() returns all matches.
-        // We iterate and check condition.
+        // 1. Remove standard Discretionary Hyphens
+        app.findTextPreferences.findWhat = "^-";
+        counter += removeFound(targets, CONDITION_NAME);
+
+        // 2. Remove '#' (if preview mode was used)
+        app.findTextPreferences.findWhat = "#";
+        counter += removeFound(targets, CONDITION_NAME);
+
+        // 3. Remove Non-breaking spaces (if we inserted them)
+        app.findTextPreferences.findWhat = "^S"; // Nonbreaking space
+        counter += removeFound(targets, CONDITION_NAME);
+
+        app.findTextPreferences = NothingEnum.nothing;
+        txtStatus.text = "Removed " + counter + " items.";
+    };
+
+    function removeFound(targets, condName) {
+        var count = 0;
         for (var i = 0; i < targets.length; i++) {
             var found = targets[i].findText();
             for (var j = found.length - 1; j >= 0; j--) {
-                // Check if the character has the specific condition
-                // appliedConditions returns an array of Condition objects.
                 var conds = found[j].appliedConditions;
                 var isTagged = false;
                 if (conds && conds.length) {
                     for (var c = 0; c < conds.length; c++) {
-                        if (conds[c].name === CONDITION_NAME) {
+                        if (conds[c].name === condName) {
                             isTagged = true;
                             break;
                         }
                     }
                 }
-
                 if (isTagged) {
-                    found[j].remove();
-                    counter++;
+                    if (found[j].contents === SpecialCharacters.NONBREAKING_SPACE) {
+                        found[j].contents = " "; // Replace with normal space
+                    } else {
+                        found[j].remove(); // Remove hyphen/#
+                    }
+                    count++;
                 }
             }
         }
-
-        app.findTextPreferences = NothingEnum.nothing;
-        txtStatus.text = "Removed " + counter + " hyphens.";
-    };
+        return count;
+    }
 
     // RUN logic
     btnRun.onClick = function () {
@@ -614,125 +635,97 @@ function main() {
         var hyphenator = createHyphenator([Patterns[langCode][0], Patterns[langCode][1], {}]);
         var cond = getOrMakeCondition();
 
+        var minWordLen = parseInt(etMinWord.text, 10) || 3;
+        var minBefore = parseInt(etMinBefore.text, 10) || 2;
+        var minAfter = parseInt(etMinAfter.text, 10) || 2;
+        var usePreview = cbPreview.value;
+        var fixLastLine = cbFixLastLine.value;
+        var ignoreLastWord = cbIgnoreLastWord.value;
+
         var targets = getTargetObjects();
         if (targets.length === 0) return;
 
-        txtStatus.text = "Fetching words...";
+        txtStatus.text = "Scanning text...";
         win.layout.layout(true);
 
-        // Word Collection Strategy
-        var allWords = [];
+        var hyphenCount = 0;
 
-        // For 'Whole Document', getting all words might crash memory.
-        // Better to iterate stories or pages.
-        // But for simplicity in script, we try. If document is huge, user should select smaller chunks.
-
+        var allParagraphs = [];
         for (var t = 0; t < targets.length; t++) {
-            // resolving words can be heavy.
-            // If target is Document, iterate stories.
             if (targets[t] instanceof Document) {
                 var stories = targets[t].stories;
                 for (var s = 0; s < stories.length; s++) {
-                    allWords = allWords.concat(stories[s].words.everyItem().getElements());
+                    allParagraphs = allParagraphs.concat(stories[s].paragraphs.everyItem().getElements());
                 }
             } else {
-                allWords = allWords.concat(targets[t].words.everyItem().getElements());
+                allParagraphs = allParagraphs.concat(targets[t].paragraphs.everyItem().getElements());
             }
         }
 
-        progBar.maxvalue = allWords.length;
-        var hyphenCount = 0;
+        progBar.maxvalue = allParagraphs.length;
 
-        txtStatus.text = "Processing " + allWords.length + " words...";
-        win.layout.layout(true);
+        for (var p = 0; p < allParagraphs.length; p++) {
+            var para = allParagraphs[p];
+            var words = para.words.everyItem().getElements();
 
-        // Process loop
-        for (var w = 0; w < allWords.length; w++) {
-            var wordObj = allWords[w];
-            var content = wordObj.contents;
+            if (words.length === 0) continue;
 
-            // Clean content for processing: remove existing 0x00AD and spaces/punctuation
-            // We want to hyphenate based on visible letters.
-            // But we must map back to ORIGINAL indices.
-            // If the original has Discretionary Hyphens, we should probably ignore them or strip them.
-            // If we strip them, the indices change. 
-            // So we really should strip them first if we want to re-hyphenate cleanly.
-            // But stripping modify the DOM and invalidates `wordObj`.
-            // So we cannot easily strip AND hyphenate in the same loop without re-resolving `wordObj`.
-
-            // Compromise: We calculate points based on 'content'.
-            // If 'content' has standard punctuation, Hyphenator might fail or return valid points.
-            // We'll trust Hyphenator to handle the "word" passed to it, or strip basic punctuation.
-
-            // NOTE: simple `replace` doesn't change the object, just the string copy.
-            var cleanContent = content.replace(/[\u00AD\u200C\u200D]/g, ""); // Remove SHY, ZWNJ, ZWJ for calculation?
-            // Actually, ZWNJ/ZWJ are significant in Indic. Punctuation is not.
-            // Let's strip standard punctuation from start/end.
-
-            // Hyphenator expects just the chars.
-            // For now, pass content as is (cleaned of hyphen).
-            cleanContent = content.replace(/\u00AD/g, "");
-
-            if (cleanContent.length < 3) continue;
-
-            // Run Hyphenator
-            var points = hyphenator(cleanContent); // returns [1, 3, ...] indices
-
-            if (points.length > 0) {
-                // Iterate backwards
-                for (var k = points.length - 1; k >= 0; k--) {
-                    var idx = points[k];
-                    try {
-                        // Insert Hyphen at InsertionPoint
-                        // The index from hyphenator matches the "cleaned" string indices.
-                        // If we didn't remove ZWNJ etc, it matches.
-                        // If we have punctuation, it might be off if hyphenator counts punctuation?
-                        // The engine skips non-letters. But returns indices relative to the input string?
-                        // "hyphenateWord" returns "levelsToMarkers" -> indices.
-                        // These indices are into the `text` (argument passed).
-                        // So if we pass "Hello.", and it hyphenates "Hel-lo", index is 3.
-                        // "Hello."[3] == "l" (second l).
-                        // Insertion point 3 is between l and l. Correct.
-
-                        // InDesign: `wordObj.insertionPoints[idx]`
-                        var ip = wordObj.insertionPoints[idx];
-
-                        // Check if aleady hyphenated manually (don't double insert)
-                        // But we just calculated where it SHOULD be. 
-                        // If there's already a hyphen, we might double it?
-                        // `wordObj.characters[idx]` might be the hyphen if it exists?
-                        // We are inserting AT insertion point.
-
-                        ip.contents = SpecialCharacters.DISCRETIONARY_HYPHEN;
-
-                        // Apply Condition to the newly inserted character (which is now at `characters[idx]`)
-                        // Wait, if we insert at 3, the new char is at index 3?
-                        // "Hel" (0,1,2). Insert at 3. "Hel-". The hyphen is at index 3.
-                        // Yes.
-                        wordObj.characters[idx].applyConditions(cond);
-
-                        hyphenCount++;
-                    } catch (e) {
-                        // Ignore insertion errors 
+            // FIX LAST LINE: Non-breaking space
+            if (fixLastLine && words.length >= 2) {
+                try {
+                    var penWord = words[words.length - 2];
+                    var followChar = penWord.characters.item(-1).parent.characters.item(penWord.characters.item(-1).index + 1);
+                    if (followChar.isValid && followChar.contents === " ") {
+                        followChar.contents = SpecialCharacters.NONBREAKING_SPACE;
+                        followChar.applyConditions(cond);
                     }
-                }
+                } catch (e) { }
             }
 
-            if (w % 20 === 0) {
-                progBar.value = w;
-                // Periodic update to keep UI responsive
-                // In ExtendScript, we can't easily yield. `win.update()` helps.
-                // win.update(); // Not always available or standard. 
-                // Usually InDesign script blocks UI.
+            var limit = words.length;
+            if (ignoreLastWord) limit--;
+
+            for (var w = 0; w < limit; w++) {
+                processWord(words[w], hyphenator, cond, minWordLen, minBefore, minAfter, usePreview);
+            }
+
+            if (p % 10 === 0) {
+                progBar.value = p;
             }
         }
 
-        progBar.value = allWords.length;
-        progBar.value = allWords.length;
+        progBar.value = allParagraphs.length;
         if (hyphenCount === 0) {
-            alert("Done. 0 hyphens added.\n\nTroubleshooting:\n- Checked " + allWords.length + " words.\n- First word seen: '" + (allWords.length > 0 ? allWords[0].contents : "none") + "'\n- Result: " + (allWords.length > 0 ? JSON.stringify(hyphenator(allWords[0].contents.replace(/\u00AD/g, ""))) : "n/a"));
+            txtStatus.text = "Done. 0 hyphens added.";
         } else {
             txtStatus.text = "Done. Added " + hyphenCount + " hyphens.";
+        }
+
+        function processWord(wordObj, hyphenator, cond, minLen, minB, minA, preview) {
+            var content = wordObj.contents;
+            var cleanContent = content.replace(/[\u00AD\u200C\u200D\u200B]/g, "").replace(/\u00AD/g, "");
+
+            if (cleanContent.length < minLen) return;
+
+            var points = hyphenator(cleanContent);
+
+            for (var k = points.length - 1; k >= 0; k--) {
+                var idx = points[k];
+                if (idx < minB) continue;
+                if ((cleanContent.length - idx) < minA) continue;
+                if (isCombiningMark(cleanContent[idx])) continue;
+
+                try {
+                    var ip = wordObj.insertionPoints[idx];
+                    if (preview) {
+                        ip.contents = "#";
+                    } else {
+                        ip.contents = SpecialCharacters.DISCRETIONARY_HYPHEN;
+                    }
+                    wordObj.characters[idx].applyConditions(cond);
+                    hyphenCount++;
+                } catch (e) { }
+            }
         }
     };
 

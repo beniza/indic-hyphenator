@@ -1,15 +1,10 @@
-
-
 /**
- * Indic Hyphenator for Adobe InDesign
- * Adds discretionary hyphens for Tamil, Malayalam, Telugu, and Kannada.
- * 
- * Based on Franklin M. Liang's algorithm.
- * Patterns from: https://github.com/ytiurin/hyphen
+ * Indic Hyphenator Logic Tester (Node.js)
+ * V2 Simulation
  */
 
 // ============================================================================================
-// POLYFILLS (ExtendScript is ES3-ish)
+// POLYFILLS
 // ============================================================================================
 
 if (!Function.prototype.bind) {
@@ -86,30 +81,13 @@ if (!Object.keys) {
             if (typeof obj !== 'object' && (typeof obj !== 'function' || obj === null)) {
                 throw new TypeError('Object.keys called on non-object');
             }
-
-            var result = [], prop, i;
-
-            for (prop in obj) {
-                if (hasOwnProperty.call(obj, prop)) {
-                    result.push(prop);
-                }
-            }
-
-            if (hasDontEnumBug) {
-                for (i = 0; i < dontEnumsLength; i++) {
-                    if (hasOwnProperty.call(obj, dontEnums[i])) {
-                        result.push(dontEnums[i]);
-                    }
-                }
-            }
-            return result;
+            return [];
         };
     }());
 }
 
 // ============================================================================================
 // HYPHENATION ENGINE
-// Adapted from https://github.com/ytiurin/hyphen/blob/master/hyphen.js
 // ============================================================================================
 
 var createHyphenator = (function () {
@@ -340,22 +318,13 @@ var createHyphenator = (function () {
                 )
             );
 
-        // In InDesign we'd rather get the hyphenation points for a single word, 
-        // but this engine is designed to process chunks of text. 
-        // We will expose a way to just get the markers for a word.
-
         return {
             hyphenate: function (word) {
-                // simplified single word hyphenation used locally
                 var loweredWord = word.toLocaleLowerCase();
                 return hyphenateWord(word, loweredWord, levelsTable, patterns);
             }
         };
-
     }
-
-    // Simplified createHyphenator for our use case (just need the internal hyphenateWord really)
-    // But we'll stick to the structure to keep the logic intact.
 
     function createHyphenator(patternsDefinition, options) {
         var levelsTable = patternsDefinition[0],
@@ -425,7 +394,7 @@ Patterns.te = [
         "క": 3, "ఖ": 3, "గ": 3, "ఘ": 3, "ఙ": 3,
         "చ": 3, "ఛ": 3, "జ": 3, "ఝ": 3, "ఞ": 3,
         "ట": 3, "ఠ": 3, "డ": 3, "ఢ": 3, "ణ": 3,
-        "త": 3, "థ": 3, "ద": 3, "ధ": 3, "న": 3,
+        "త": 3, "థ": 3, "ద": 3, "ಧ": 3, "న": 3,
         "ప": 3, "ఫ": 3, "బ": 3, "భ": 3, "మ": 3,
         "య": 3, "ర": 3, "ఱ": 3, "ల": 3, "ళ": 3, "వ": 3, "శ": 3, "ష": 3, "స": 3, "హ": 3,
         "ఁ": 4, "ం": 4, "ః": 4, "ౕ": 4, "ౖ": 4, "్": 0
@@ -437,7 +406,7 @@ Patterns.kn = [
     [[2, 2], [1, 1], [0, 1], [1], [2, 1]],
     {
         "\u200D": 0, "\u200C": 1,
-        "ಅ": 2, "ఆ": 2, "ಇ": 2, "ಈ": 2, "ಉ": 2, "ಊ": 2, "ಋ": 2, "ೠ": 2, "ಌ": 2, "ೡ": 2,
+        "ಅ": 2, "ఆ": 2, "ఇ": 2, "ಈ": 2, "ಉ": 2, "ಊ": 2, "ಋ": 2, "ೠ": 2, "ಌ": 2, "ೡ": 2,
         "ಎ": 2, "ಏ": 2, "ಐ": 2, "ಒ": 2, "ಓ": 2, "ಔ": 2,
         "ಾ": 2, "ి": 2, "ೀ": 2, "ು": 2, "ೂ": 2, "ೃ": 2, "ೄ": 2, "ೆ": 2, "ೇ": 2, "ೈ": 2, "ೊ": 2, "ೋ": 2, "ೌ": 2,
         "ಕ": 3, "ఖ": 3, "గ": 3, "ఘ": 3, "ಙ": 3,
@@ -451,307 +420,71 @@ Patterns.kn = [
     {}
 ];
 
-// ============================================================================================
-// UI & LOGIC
-// ============================================================================================
+function isCombiningMark(char) {
+    if (!char) return false;
+    var code = char.charCodeAt(0);
+    // Tamil: 0B82-0B83 (Signs), 0BBE-0BCD (Matras/Virama), 0BD7 (Au length)
+    if ((code >= 0x0B82 && code <= 0x0B83) || (code >= 0x0BBE && code <= 0x0BCD) || code === 0x0BD7) return true;
 
-function main() {
-    // Condition management
-    var CONDITION_NAME = "IndicHyphenator";
+    // Malayalam: 0D02-0D03, 0D3E-0D4D, 0D57
+    if ((code >= 0x0D02 && code <= 0x0D03) || (code >= 0x0D3E && code <= 0x0D4D) || code === 0x0D57) return true;
 
-    function getOrMakeCondition() {
-        if (!app.documents.length) return null;
-        var doc = app.activeDocument;
-        var cond = doc.conditions.item(CONDITION_NAME);
-        if (!cond.isValid) {
-            cond = doc.conditions.add({
-                name: CONDITION_NAME,
-                indicatorMethod: ConditionIndicatorMethod.USE_HIGHLIGHT,
-                indicatorColor: UIColors.GRID_GREEN,
-                visible: false // Invisible by default
-            });
-        }
-        return cond;
-    }
+    // Telugu: 0C01-0C03, 0C3E-0C4D, 0C55-0C56
+    if ((code >= 0x0C01 && code <= 0x0C03) || (code >= 0x0C3E && code <= 0x0C4D) || (code >= 0x0C55 && code <= 0x0C56)) return true;
 
-    // Main UI
-    var win = new Window("dialog", "Indic Hyphenator");
-    win.orientation = "column";
-    win.alignChildren = "fill";
+    // Kannada: 0C82-0C83, 0CBE-0CCD, 0CD5-0CD6
+    if ((code >= 0x0C82 && code <= 0x0C83) || (code >= 0x0CBE && code <= 0x0CCD) || (code >= 0x0CD5 && code <= 0x0CD6)) return true;
 
-    // Panel: Scope
-    var pScope = win.add("panel", undefined, "Scope");
-    pScope.alignChildren = "left";
-    var rbSelection = pScope.add("radiobutton", undefined, "Selection");
-    var rbStory = pScope.add("radiobutton", undefined, "Parent Story (of selection)");
-    var rbDocument = pScope.add("radiobutton", undefined, "Whole Document");
-    rbSelection.value = true;
-
-    // Auto-select based on what is selected
-    if (app.selection.length === 0) {
-        rbSelection.enabled = false;
-        rbStory.enabled = false;
-        rbDocument.value = true;
-    } else if (app.selection.length > 0 && !(app.selection[0] instanceof TextFrame || app.selection[0].hasOwnProperty("baseline"))) {
-        // If selection isn't text-related (like an image), default to doc
-        // But usually InDesign scripts run with text selected.
-    }
-
-    // Panel: Language
-    var pLang = win.add("panel", undefined, "Language");
-    pLang.alignChildren = "left";
-    var dwLang = pLang.add("dropdownlist", undefined, ["Tamil", "Malayalam", "Telugu", "Kannada"]);
-    dwLang.selection = 0;
-
-    // Panel: Action
-    var pAction = win.add("group");
-    pAction.alignment = "right";
-    var btnRemove = pAction.add("button", undefined, "Remove Hyphens");
-    var btnRun = pAction.add("button", undefined, "Hyphenate");
-    var btnCancel = pAction.add("button", undefined, "Cancel");
-
-    btnCancel.onClick = function () { win.close(); };
-
-    // Progress
-    var pProgress = win.add("panel", undefined, "Status");
-    pProgress.alignChildren = "fill";
-    var txtStatus = pProgress.add("statictext", undefined, "Ready");
-    var progBar = pProgress.add("progressbar", undefined, 0, 100);
-    progBar.preferredSize.width = 300;
-
-
-    // ----------- LOGIC -----------
-
-    function getTargetObjects() {
-        var targets = [];
-        var scopeName = "";
-        if (rbSelection.value) {
-            scopeName = "Selection";
-            for (var i = 0; i < app.selection.length; i++) {
-                if (app.selection[i].hasOwnProperty("texts")) {
-                    targets.push(app.selection[i].texts[0]);
-                } else if (app.selection[i] instanceof TextFrame) {
-                    targets.push(app.selection[i].texts[0]);
-                } else if (app.selection[i] instanceof Text) { // User selected text range
-                    targets.push(app.selection[i]);
-                }
-            }
-        } else if (rbStory.value) {
-            scopeName = "Story";
-            if (app.selection.length > 0 && app.selection[0].parentStory) {
-                targets.push(app.selection[0].parentStory);
-            }
-        } else {
-            // Document
-            scopeName = "Document";
-            if (app.activeDocument) {
-                targets.push(app.activeDocument);
-            }
-        }
-        return targets;
-    }
-
-    // REMOVE logic
-    btnRemove.onClick = function () {
-        var cond = getOrMakeCondition();
-        if (!cond) return;
-
-        var targets = getTargetObjects();
-        if (targets.length === 0) {
-            alert("No target found.");
-            return;
-        }
-
-        txtStatus.text = "Removing existing hyphens...";
-        win.layout.layout(true); // Force UI update
-
-        app.findChangeTextOptions.includeFootnotes = true;
-        app.findChangeTextOptions.includeHiddenLayers = false;
-        app.findChangeTextOptions.includeLockedLayersForFind = false;
-        app.findChangeTextOptions.includeLockedStoriesForFind = false;
-        app.findChangeTextOptions.includeMasterPages = false;
-
-        app.findTextPreferences = NothingEnum.nothing;
-        app.changeTextPreferences = NothingEnum.nothing;
-
-        // Find discretionary hyphens
-        app.findTextPreferences.findWhat = "^-"; // Discretionary hyphen
-
-        var counter = 0;
-
-        // Unfortunately standard JS findText() returns all matches.
-        // We iterate and check condition.
-        for (var i = 0; i < targets.length; i++) {
-            var found = targets[i].findText();
-            for (var j = found.length - 1; j >= 0; j--) {
-                // Check if the character has the specific condition
-                // appliedConditions returns an array of Condition objects.
-                var conds = found[j].appliedConditions;
-                var isTagged = false;
-                if (conds && conds.length) {
-                    for (var c = 0; c < conds.length; c++) {
-                        if (conds[c].name === CONDITION_NAME) {
-                            isTagged = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (isTagged) {
-                    found[j].remove();
-                    counter++;
-                }
-            }
-        }
-
-        app.findTextPreferences = NothingEnum.nothing;
-        txtStatus.text = "Removed " + counter + " hyphens.";
-    };
-
-    // RUN logic
-    btnRun.onClick = function () {
-        var langCode = ["ta", "ml", "te", "kn"][dwLang.selection.index];
-        var hyphenator = createHyphenator([Patterns[langCode][0], Patterns[langCode][1], {}]);
-        var cond = getOrMakeCondition();
-
-        var targets = getTargetObjects();
-        if (targets.length === 0) return;
-
-        txtStatus.text = "Fetching words...";
-        win.layout.layout(true);
-
-        // Word Collection Strategy
-        var allWords = [];
-
-        // For 'Whole Document', getting all words might crash memory.
-        // Better to iterate stories or pages.
-        // But for simplicity in script, we try. If document is huge, user should select smaller chunks.
-
-        for (var t = 0; t < targets.length; t++) {
-            // resolving words can be heavy.
-            // If target is Document, iterate stories.
-            if (targets[t] instanceof Document) {
-                var stories = targets[t].stories;
-                for (var s = 0; s < stories.length; s++) {
-                    allWords = allWords.concat(stories[s].words.everyItem().getElements());
-                }
-            } else {
-                allWords = allWords.concat(targets[t].words.everyItem().getElements());
-            }
-        }
-
-        progBar.maxvalue = allWords.length;
-        var hyphenCount = 0;
-
-        txtStatus.text = "Processing " + allWords.length + " words...";
-        win.layout.layout(true);
-
-        // Process loop
-        for (var w = 0; w < allWords.length; w++) {
-            var wordObj = allWords[w];
-            var content = wordObj.contents;
-
-            // Clean content for processing: remove existing 0x00AD and spaces/punctuation
-            // We want to hyphenate based on visible letters.
-            // But we must map back to ORIGINAL indices.
-            // If the original has Discretionary Hyphens, we should probably ignore them or strip them.
-            // If we strip them, the indices change. 
-            // So we really should strip them first if we want to re-hyphenate cleanly.
-            // But stripping modify the DOM and invalidates `wordObj`.
-            // So we cannot easily strip AND hyphenate in the same loop without re-resolving `wordObj`.
-
-            // Compromise: We calculate points based on 'content'.
-            // If 'content' has standard punctuation, Hyphenator might fail or return valid points.
-            // We'll trust Hyphenator to handle the "word" passed to it, or strip basic punctuation.
-
-            // NOTE: simple `replace` doesn't change the object, just the string copy.
-            var cleanContent = content.replace(/[\u00AD\u200C\u200D]/g, ""); // Remove SHY, ZWNJ, ZWJ for calculation?
-            // Actually, ZWNJ/ZWJ are significant in Indic. Punctuation is not.
-            // Let's strip standard punctuation from start/end.
-
-            // Hyphenator expects just the chars.
-            // For now, pass content as is (cleaned of hyphen).
-            cleanContent = content.replace(/\u00AD/g, "");
-
-            if (cleanContent.length < 3) continue;
-
-            // Run Hyphenator
-            var points = hyphenator(cleanContent); // returns [1, 3, ...] indices
-
-            if (points.length > 0) {
-                // Iterate backwards
-                for (var k = points.length - 1; k >= 0; k--) {
-                    var idx = points[k];
-                    try {
-                        // Insert Hyphen at InsertionPoint
-                        // The index from hyphenator matches the "cleaned" string indices.
-                        // If we didn't remove ZWNJ etc, it matches.
-                        // If we have punctuation, it might be off if hyphenator counts punctuation?
-                        // The engine skips non-letters. But returns indices relative to the input string?
-                        // "hyphenateWord" returns "levelsToMarkers" -> indices.
-                        // These indices are into the `text` (argument passed).
-                        // So if we pass "Hello.", and it hyphenates "Hel-lo", index is 3.
-                        // "Hello."[3] == "l" (second l).
-                        // Insertion point 3 is between l and l. Correct.
-
-                        // InDesign: `wordObj.insertionPoints[idx]`
-                        var ip = wordObj.insertionPoints[idx];
-
-                        // Check if aleady hyphenated manually (don't double insert)
-                        // But we just calculated where it SHOULD be. 
-                        // If there's already a hyphen, we might double it?
-                        // `wordObj.characters[idx]` might be the hyphen if it exists?
-                        // We are inserting AT insertion point.
-
-                        ip.contents = SpecialCharacters.DISCRETIONARY_HYPHEN;
-
-                        // Apply Condition to the newly inserted character (which is now at `characters[idx]`)
-                        // Wait, if we insert at 3, the new char is at index 3?
-                        // "Hel" (0,1,2). Insert at 3. "Hel-". The hyphen is at index 3.
-                        // Yes.
-                        wordObj.characters[idx].applyConditions(cond);
-
-                        hyphenCount++;
-                    } catch (e) {
-                        // Ignore insertion errors 
-                    }
-                }
-            }
-
-            if (w % 20 === 0) {
-                progBar.value = w;
-                // Periodic update to keep UI responsive
-                // In ExtendScript, we can't easily yield. `win.update()` helps.
-                // win.update(); // Not always available or standard. 
-                // Usually InDesign script blocks UI.
-            }
-        }
-
-        progBar.value = allWords.length;
-        txtStatus.text = "Done. Added " + hyphenCount + " hyphens.";
-    };
-
-    win.show();
+    return false;
 }
 
+// ==========================================
+// V2 LOGIC SIMULATION
+// ==========================================
 
+function simulateV2(word, hyphenator, minLen, minB, minA) {
+    if (word.length < minLen) return "skipped (length)";
 
-// Test
-// Test Tamil
+    var points = hyphenator(word);
+    var filteredPoints = [];
+
+    for (var k = 0; k < points.length; k++) {
+        var idx = points[k];
+        // 1. Min Before/After
+        if (idx < minB) continue;
+        if ((word.length - idx) < minA) continue;
+
+        // 2. Grapheme
+        if (isCombiningMark(word[idx])) {
+            console.log("   [INFO] Blocked split at " + idx + " because char '" + word[idx] + "' (" + word.charCodeAt(idx).toString(16) + ") is combining.");
+            continue;
+        }
+
+        filteredPoints.push(idx);
+    }
+
+    return JSON.stringify(filteredPoints);
+}
+
+console.log("\n--- V2 Test Results ---");
 var h = createHyphenator([Patterns.ta[0], Patterns.ta[1], {}]);
-console.log('Tam: ' + JSON.stringify(h('வணக்கம்')));
-console.log('Tam: ' + JSON.stringify(h('கட்டளை')));
 
-// Test Malayalam
+// Test 1: Min Length
+console.log("Min Length (3) on 'it': " + simulateV2("it", h, 3, 2, 2));
+
+// Test 2: Min Before/After
+// 'வணக்கம்' -> [4] (index 4 is 'க')
+// Length 6. 
+console.log("MinBefore 5 on 'வணக்கம்' (index 4): " + simulateV2("வணக்கம்", h, 3, 5, 2));
+console.log("MinBefore 2 on 'வணக்கம்' (index 4): " + simulateV2("வணக்கம்", h, 3, 2, 2));
+
+// Test 3: Grapheme Block
+// We simulate a bad split point manually by forcing the engine to find one?
+// Hard to force the engine if patterns are good.
+// But we can check isCombiningMark logic directly.
+var virama = "\u0BCD";
+console.log("Is Virama combining? " + isCombiningMark(virama));
+
+// Test 4: Malayalam basic
 var hm = createHyphenator([Patterns.ml[0], Patterns.ml[1], {}]);
-console.log('Mal: ' + JSON.stringify(hm('മലയാളം')));
-console.log('Ker: ' + JSON.stringify(hm('കേരളം')));
-console.log('Mal with dot: ' + JSON.stringify(hm('മലയാളം.')));
-
-// Test Telugu
-var hte = createHyphenator([Patterns.te[0], Patterns.te[1], {}]);
-console.log('Tel: ' + JSON.stringify(hte('నమస్కారం')));
-
-// Test Kannada
-var hkn = createHyphenator([Patterns.kn[0], Patterns.kn[1], {}]);
-console.log('Kan: ' + JSON.stringify(hkn('ನಮಸ್ಕಾರ')));
+console.log("Malayalam 'കേരളം': " + simulateV2("കേരളം", hm, 3, 2, 2));
